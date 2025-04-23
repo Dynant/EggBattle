@@ -29,6 +29,10 @@ public class EggHit implements Listener {
     // Make sure the thrower and target are not the same player
     if (thrower.equals(target)) return;
 
+    // Check if the thrower and target are in the game
+    if (!EggBattle.gameManager.isPlayerInGame(thrower.getUniqueId())) return;
+    if (!EggBattle.gameManager.isPlayerInGame(target.getUniqueId())) return;
+
     // Update scores for thrower and target
     EggBattle.gameManager.addScore(thrower, 1);
     EggBattle.gameManager.addScore(target, -1);

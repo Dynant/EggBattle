@@ -13,23 +13,21 @@ public class ScoreManager {
   private static final long SAVE_INTERVAL = 20L * 60; // 60 seconds
 
   private final EggBattle plugin;
-  private final EggBattleManager manager;
   private final File scoresFile;
   private final FileConfiguration scoresConfig;
   private BukkitRunnable saveTask;
 
   private final Map<UUID, Integer> scores = new HashMap<>();
 
-  public ScoreManager(EggBattle plugin, EggBattleManager manager) {
+  public ScoreManager(EggBattle plugin, boolean gameIsActive) {
     this.plugin = plugin;
-    this.manager = manager;
 
     this.scoresFile = new File(plugin.getDataFolder(), SCORES_CONFIG_NAME);
     this.scoresConfig = YamlConfiguration.loadConfiguration(scoresFile);
 
     loadScoresFromFile();
 
-    if (manager.gameIsActive()) {
+    if (gameIsActive) {
       startSaveTask();
     }
   }
@@ -43,7 +41,7 @@ public class ScoreManager {
         new BukkitRunnable() {
           @Override
           public void run() {
-            manager.saveScoresToFile();
+            saveScoresToFile();
           }
         };
     saveTask.runTaskTimer(plugin, SAVE_INTERVAL, SAVE_INTERVAL);
@@ -99,9 +97,11 @@ public class ScoreManager {
 
   public void resetAll() {
     scores.clear();
+    saveScoresToFile();
   }
 
   public void resetPlayer(UUID uuid) {
     scores.remove(uuid);
+    saveScoresToFile();
   }
 }

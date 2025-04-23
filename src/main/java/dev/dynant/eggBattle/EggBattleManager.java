@@ -1,19 +1,22 @@
 /* Licensed under GNU General Public License v3.0 */
 package dev.dynant.eggBattle;
 
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.title.Title;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.*;
+import org.jetbrains.annotations.Nullable;
 
 public class EggBattleManager {
   private static final String OBJECTIVE_NAME = "eggScore";
+  private static final String PARTICIPANT_TEAM_NAME = "eggBattleParticipant";
+  private static final Component PARTICIPANT_TEAM_PREFIX =
+      Component.text("[Egg] ", NamedTextColor.GOLD);
   private static final Component OBJECTIVE_TITLE =
       Component.text()
           .append(Component.text("NV: ", NamedTextColor.LIGHT_PURPLE))
@@ -21,60 +24,24 @@ public class EggBattleManager {
           .append(Component.text("Battle", NamedTextColor.AQUA))
           .build();
 
-  private static final Title START_GAME_TITLE =
-      Title.title(
-          Component.text()
-              .append(Component.text("Egg ", NamedTextColor.YELLOW))
-              .append(Component.text("Battle ", NamedTextColor.AQUA))
-              .append(Component.text("Started!", NamedTextColor.GOLD))
-              .build(),
-          Component.text("Let's get cracking!", NamedTextColor.GREEN));
-
-  private static final Title PAUSE_GAME_TITLE =
-      Title.title(
-          Component.text()
-              .append(Component.text("Egg ", NamedTextColor.YELLOW))
-              .append(Component.text("Battle ", NamedTextColor.AQUA))
-              .append(Component.text("Paused!", NamedTextColor.GOLD))
-              .build(),
-          Component.text("Taking a little egg break!", NamedTextColor.YELLOW));
-
-  private static final Title UNPAUSE_GAME_TITLE =
-      Title.title(
-          Component.text()
-              .append(Component.text("Egg ", NamedTextColor.YELLOW))
-              .append(Component.text("Battle ", NamedTextColor.AQUA))
-              .append(Component.text("Resumed!", NamedTextColor.GOLD))
-              .build(),
-          Component.text("Let's get cracking again!", NamedTextColor.YELLOW));
-
-  private static final Title END_GAME_TITLE =
-      Title.title(
-          Component.text()
-              .append(Component.text("Egg ", NamedTextColor.YELLOW))
-              .append(Component.text("Battle ", NamedTextColor.AQUA))
-              .append(Component.text("Ended!", NamedTextColor.GOLD))
-              .build(),
-          Component.text("That's all, yolks!", NamedTextColor.RED));
-
   private static final String GAME_ACTIVE_CONFIG_KEY = "game_active";
 
   private final EggBattle plugin;
   private final ScoreManager scoreManager;
+  private final ParticipantManager participantManager;
+
   private final Scoreboard scoreBoard;
   private Objective objective;
+  private Team participantTeam;
 
   public EggBattleManager(EggBattle plugin) {
     this.plugin = plugin;
-    this.scoreManager = new ScoreManager(plugin, this);
+    this.scoreManager = new ScoreManager(plugin, this.gameIsActive());
+    this.participantManager = new ParticipantManager(plugin);
 
     scoreBoard = Bukkit.getScoreboardManager().getMainScoreboard();
-    scoreBoard.clearSlot(DisplaySlot.SIDEBAR);
 
-    if (gameIsActive()) {
-      createObjective();
-      loadScoresIntoScoreboard();
-    }
+    setupGame(null);
   }
 
   public boolean gameIsActive() {
@@ -86,14 +53,62 @@ public class EggBattleManager {
     plugin.saveConfig();
   }
 
-  public void createObjective() {
-    // Don't create a new objective if it already exists
-    Objective exitingObjective = scoreBoard.getObjective(OBJECTIVE_NAME);
-    if (exitingObjective != null) exitingObjective.unregister();
+  // Setup game will create the objective and participant team
+  public void setupGame(@Nullable CommandSender sender) {
+    getOrCreateObjective();
+    getOrCreateParticipantTeam();
 
+    // When game is active, load scores into scoreboard
+    if (gameIsActive()) loadScoresIntoScoreboard();
+
+    if (sender != null) {
+      sender.sendMessage(Component.text("Game setup!", NamedTextColor.GREEN));
+    }
+  }
+
+  // Reset game will clear objectives, scoreboard, scores and participants
+  public void resetGame(CommandSender sender) {
+    setGameState(false);
+    scoreManager.stopSaveTask();
+
+    scoreManager.resetAll();
+    participantManager.removeAllParticipants();
+
+    if (scoreBoard != null) scoreBoard.clearSlot(DisplaySlot.PLAYER_LIST);
+
+    if (objective != null) {
+      objective.unregister();
+      objective = null;
+    }
+
+    if (participantTeam != null) {
+      participantTeam.unregister();
+      participantTeam = null;
+    }
+
+    sender.sendMessage(Component.text("Game reset!", NamedTextColor.GREEN));
+  }
+
+  // Get or create objective to display on scoreboard
+  public void getOrCreateObjective() {
+    objective = scoreBoard.getObjective(OBJECTIVE_NAME);
+
+    if (objective != null) return;
     // Register new objective to display on scoreboard
     objective = scoreBoard.registerNewObjective(OBJECTIVE_NAME, Criteria.DUMMY, OBJECTIVE_TITLE);
-    objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+    objective.setDisplaySlot(DisplaySlot.PLAYER_LIST);
+  }
+
+  // Get or create participant team to show if player is in game
+  private Team getOrCreateParticipantTeam() {
+    participantTeam = scoreBoard.getTeam(PARTICIPANT_TEAM_NAME);
+
+    if (participantTeam == null) {
+      participantTeam = scoreBoard.registerNewTeam(PARTICIPANT_TEAM_NAME);
+      participantTeam.prefix(PARTICIPANT_TEAM_PREFIX);
+    }
+
+    return participantTeam;
   }
 
   public void loadScoresIntoScoreboard() {
@@ -121,40 +136,18 @@ public class EggBattleManager {
   }
 
   public void startGame(CommandSender sender) {
+    // Check if game is setup already
+    if (scoreBoard == null || objective == null || participantTeam == null) {
+      sender.sendMessage(
+          Component.text("Game not setup! run ", NamedTextColor.RED)
+              .append(Component.text("/eggbattle setup", NamedTextColor.YELLOW)));
+      return;
+    }
+
     setGameState(true);
     scoreManager.startSaveTask();
 
-    createObjective();
-
-    for (Player player : Bukkit.getOnlinePlayers()) {
-      player.showTitle(START_GAME_TITLE);
-    }
-
     sender.sendMessage(Component.text("Game started!", NamedTextColor.GREEN));
-  }
-
-  public void pauseGame(CommandSender sender) {
-    if (gameIsActive()) {
-      // Pause
-      setGameState(false);
-      scoreManager.stopSaveTask();
-
-      for (Player player : Bukkit.getOnlinePlayers()) {
-        player.showTitle(PAUSE_GAME_TITLE);
-      }
-
-      sender.sendMessage(Component.text("Game paused!", NamedTextColor.GREEN));
-    } else {
-      // Unpause
-      setGameState(true);
-      scoreManager.startSaveTask();
-
-      for (Player player : Bukkit.getOnlinePlayers()) {
-        player.showTitle(UNPAUSE_GAME_TITLE);
-      }
-
-      sender.sendMessage(Component.text("Game unpaused!", NamedTextColor.GREEN));
-    }
   }
 
   public void stopGame(CommandSender sender) {
@@ -163,35 +156,7 @@ public class EggBattleManager {
     scoreManager.stopSaveTask();
     saveScoresToFile();
 
-    for (Player player : Bukkit.getOnlinePlayers()) {
-      player.showTitle(END_GAME_TITLE);
-    }
-
     sender.sendMessage(Component.text("Game stopped!", NamedTextColor.GREEN));
-  }
-
-  public void resetGame(CommandSender sender) {
-    // Make sure the game is not active (in case we forgot to end the game)
-    setGameState(false);
-    scoreManager.stopSaveTask();
-
-    resetScores(sender);
-    saveScoresToFile();
-
-    // Unregister objective and clear scoreboard
-    if (objective != null) objective.unregister();
-    if (scoreBoard != null) scoreBoard.clearSlot(DisplaySlot.SIDEBAR);
-
-    sender.sendMessage(Component.text("Game reset!", NamedTextColor.GREEN));
-  }
-
-  public void resetScores(CommandSender sender) {
-    scoreManager.resetAll();
-
-    saveScoresToFile();
-    loadScoresIntoScoreboard();
-
-    sender.sendMessage(Component.text("Scores reset!", NamedTextColor.GREEN));
   }
 
   public void addScore(Player player, int delta) {
@@ -201,19 +166,103 @@ public class EggBattleManager {
     Score current = objective.getScore(player.getName());
     int newScore = current.getScore() + delta;
 
-    if (newScore < 0) return;
-
     scoreManager.setScore(player.getUniqueId(), newScore);
     objective.getScore(player.getName()).setScore(newScore);
   }
 
+  public void resetScores(CommandSender sender) {
+    scoreManager.resetAll();
+    loadScoresIntoScoreboard();
+
+    sender.sendMessage(Component.text("Scores reset!", NamedTextColor.GREEN));
+  }
+
   public void resetPlayerScore(CommandSender sender, OfflinePlayer player) {
     scoreManager.resetPlayer(player.getUniqueId());
-
-    saveScoresToFile();
     loadScoresIntoScoreboard();
 
     sender.sendMessage(
         Component.text("Score reset for player: " + player.getName(), NamedTextColor.GREEN));
+  }
+
+  public void addPlayer(Player player) {
+    if (!gameIsActive()) return;
+
+    // Check if player is already in the game
+    if (isPlayerInGame(player.getUniqueId())) {
+      player.sendMessage(getMessage("already_joined"));
+      return;
+    }
+
+    participantManager.addParticipant(player);
+    getOrCreateParticipantTeam().addEntry(player.getName());
+
+    player.sendMessage(getMessage("player_join"));
+  }
+
+  public void removePlayer(Player player) {
+    // Check if player is in the game
+    if (!isPlayerInGame(player.getUniqueId())) {
+      player.sendMessage(getMessage("not_joined"));
+      return;
+    }
+
+    participantManager.removeParticipant(player);
+    Team team = scoreBoard.getTeam(PARTICIPANT_TEAM_NAME);
+    if (team != null) team.removeEntry(player.getName());
+
+    player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+    player.sendMessage(getMessage("player_leave"));
+  }
+
+  public void showStatus(CommandSender sender) {
+    if (gameIsActive()) {
+      sender.sendMessage(Component.text("Game is active", NamedTextColor.GREEN));
+    } else {
+      sender.sendMessage(Component.text("Game is not active!", NamedTextColor.RED));
+    }
+  }
+
+  private Component getMessage(String path) {
+    String message = plugin.getConfig().getString("messages." + path, "");
+    return MiniMessage.miniMessage().deserialize(message);
+  }
+
+  public void getTopPlayers(CommandSender sender) {
+    Map<UUID, Integer> scores = scoreManager.getAllScores();
+    List<Map.Entry<UUID, Integer>> sortedScores = new ArrayList<>(scores.entrySet());
+    sortedScores.sort(Map.Entry.comparingByValue(Comparator.reverseOrder()));
+
+    Component message = Component.text("==== Top 10 Players ====\n");
+
+    for (int i = 0; i < Math.min(sortedScores.size(), 10); i++) {
+      Map.Entry<UUID, Integer> entry = sortedScores.get(i);
+      OfflinePlayer player = Bukkit.getOfflinePlayer(entry.getKey());
+
+      String playerName = player.getName();
+      if (playerName == null) playerName = "Unknown";
+
+      message =
+          message
+              .append(Component.text((i + 1) + ". ", NamedTextColor.GOLD))
+              .append(Component.text(playerName, NamedTextColor.GREEN))
+              .append(Component.text(": ", NamedTextColor.WHITE))
+              .append(Component.text(entry.getValue(), NamedTextColor.AQUA))
+              .append(Component.text("\n", NamedTextColor.WHITE));
+    }
+
+    sender.sendMessage(message);
+  }
+
+  public boolean isPlayerInGame(UUID player) {
+    return participantManager.isParticipant(player);
+  }
+
+  public void broadcastExplanation() {
+    plugin.getServer().broadcast(getMessage("game_explanation"));
+  }
+
+  public void broadcastEnd() {
+    plugin.getServer().broadcast(getMessage("game_end"));
   }
 }
