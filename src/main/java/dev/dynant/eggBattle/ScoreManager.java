@@ -69,8 +69,6 @@ public class ScoreManager {
   }
 
   public void saveScoresToFile() {
-    plugin.getLogger().info("Saving scores to " + SCORES_CONFIG_NAME);
-
     // Cleanup existing scores
     for (String key : scoresConfig.getKeys(false)) {
       scoresConfig.set(key, null);

@@ -42,8 +42,6 @@ public class ParticipantManager {
   }
 
   public void saveParticipantsToFile() {
-    plugin.getLogger().info("Saving participants to " + PARTICIPANTS_CONFIG_NAME);
-
     // Save all participants
     participantsConfig.set(
         "participants", participants.keySet().stream().map(UUID::toString).toList());
