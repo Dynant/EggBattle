@@ -2,6 +2,7 @@
 package dev.dynant.eggBattle;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -48,7 +49,7 @@ public class ParticipantManager {
 
     try {
       participantsConfig.save(participantsFile);
-    } catch (Exception e) {
+    } catch (IOException e) {
       plugin.getLogger().severe("Failed to save participants to file: " + e.getMessage());
     }
   }

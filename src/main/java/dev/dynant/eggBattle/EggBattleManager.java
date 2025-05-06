@@ -1,6 +1,8 @@
 /* Licensed under GNU General Public License v3.0 */
 package dev.dynant.eggBattle;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -8,6 +10,7 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.*;
 import org.jetbrains.annotations.Nullable;
@@ -34,6 +37,9 @@ public class EggBattleManager {
   private Objective objective;
   private Team participantTeam;
 
+  private final File dataConfigFile;
+  private final YamlConfiguration dataConfig;
+
   public EggBattleManager(EggBattle plugin) {
     this.plugin = plugin;
     this.scoreManager = new ScoreManager(plugin, this.gameIsActive());
@@ -41,16 +47,27 @@ public class EggBattleManager {
 
     scoreBoard = Bukkit.getScoreboardManager().getMainScoreboard();
 
+    // Create data config file to save game data
+    this.dataConfigFile = new File(plugin.getDataFolder(), "data.yml");
+    this.dataConfig = YamlConfiguration.loadConfiguration(dataConfigFile);
+
     setupGame(null);
   }
 
   public boolean gameIsActive() {
-    return plugin.getConfig().getBoolean(GAME_ACTIVE_CONFIG_KEY, false);
+    if (dataConfig == null) return false;
+
+    return dataConfig.getBoolean(GAME_ACTIVE_CONFIG_KEY, false);
   }
 
   public void setGameState(boolean active) {
-    plugin.getConfig().set(GAME_ACTIVE_CONFIG_KEY, active);
-    plugin.saveConfig();
+    dataConfig.set(GAME_ACTIVE_CONFIG_KEY, active);
+
+    try {
+      dataConfig.save(dataConfigFile);
+    } catch (IOException e) {
+      plugin.getLogger().severe("Failed to save data config: " + e.getMessage());
+    }
   }
 
   // Setup game will create the objective and participant team
