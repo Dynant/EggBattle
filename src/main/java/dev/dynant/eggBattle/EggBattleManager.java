@@ -51,7 +51,8 @@ public class EggBattleManager {
     this.dataConfigFile = new File(plugin.getDataFolder(), "data.yml");
     this.dataConfig = YamlConfiguration.loadConfiguration(dataConfigFile);
 
-    setupGame(null);
+    // Setup game when active
+    if (gameIsActive()) setupGame(null);
   }
 
   public boolean gameIsActive() {
@@ -75,7 +76,6 @@ public class EggBattleManager {
     getOrCreateObjective();
     getOrCreateParticipantTeam();
 
-    // When game is active, load scores into scoreboard
     if (gameIsActive()) loadScoresIntoScoreboard();
 
     if (sender != null) {
@@ -111,9 +111,9 @@ public class EggBattleManager {
     objective = scoreBoard.getObjective(OBJECTIVE_NAME);
 
     if (objective != null) return;
+
     // Register new objective to display on scoreboard
     objective = scoreBoard.registerNewObjective(OBJECTIVE_NAME, Criteria.DUMMY, OBJECTIVE_TITLE);
-    objective.setDisplaySlot(DisplaySlot.PLAYER_LIST);
   }
 
   // Get or create participant team to show if player is in game

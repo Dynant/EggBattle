@@ -28,3 +28,8 @@ All admin commands require the `eggbattle.admin` permission.
 ## Permissions
 - `eggbattle.admin` - Grants access to all administrative commands
 - No special permission is required for player commands (join/leave)
+
+## Show scores
+To show scores to players use scoreboard command
+
+`/scoreboard objectives setdisplay list eggScore`
