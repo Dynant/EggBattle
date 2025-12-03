@@ -1,3 +1,21 @@
+# Projectile type - Valid values: EGG, SNOWBALL, ENDER_PEARL, ARROW, TRIDENT, EXPERIENCE_BOTTLE, etc.
+# Only one projectile type can be active at a time
+projectile_type: EGG
+
+# Participant prefix - shown before player names
+participant_prefix: "<gold>[Egg]</gold> "
+
+# Objective title - shown in scoreboard tab list
+objective_title: "<light_purple>NV:</light_purple> <yellow>Egg</yellow> <aqua>Battle</aqua>"
+
+# Effects settings - customize particle and sounds
+# For particles find them in "org.bukkit.Particle"
+# for sounds use minecraft sound names you can find in "org.bukkit.Sound"
+effects:
+  particle: CRIT
+  thrower_sound: entity.chicken.egg
+  target_sound: entity.turtle.egg_crack
+
 messages:
   game_explanation: |-
     <yellow>✦</yellow> <gold><bold>EGG BATTLE</bold></gold> <yellow>✦</yellow>

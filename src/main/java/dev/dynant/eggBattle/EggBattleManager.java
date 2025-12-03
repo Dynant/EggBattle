@@ -18,15 +18,6 @@ import org.jetbrains.annotations.Nullable;
 public class EggBattleManager {
   private static final String OBJECTIVE_NAME = "eggScore";
   private static final String PARTICIPANT_TEAM_NAME = "eggBattleParticipant";
-  private static final Component PARTICIPANT_TEAM_PREFIX =
-      Component.text("[Egg] ", NamedTextColor.GOLD);
-  private static final Component OBJECTIVE_TITLE =
-      Component.text()
-          .append(Component.text("NV: ", NamedTextColor.LIGHT_PURPLE))
-          .append(Component.text("Egg ", NamedTextColor.YELLOW))
-          .append(Component.text("Battle", NamedTextColor.AQUA))
-          .build();
-
   private static final String GAME_ACTIVE_CONFIG_KEY = "game_active";
 
   private final EggBattle plugin;
@@ -113,7 +104,8 @@ public class EggBattleManager {
     if (objective != null) return;
 
     // Register new objective to display on scoreboard
-    objective = scoreBoard.registerNewObjective(OBJECTIVE_NAME, Criteria.DUMMY, OBJECTIVE_TITLE);
+    objective =
+        scoreBoard.registerNewObjective(OBJECTIVE_NAME, Criteria.DUMMY, getObjectiveTitle());
   }
 
   // Get or create participant team to show if player is in game
@@ -122,10 +114,21 @@ public class EggBattleManager {
 
     if (participantTeam == null) {
       participantTeam = scoreBoard.registerNewTeam(PARTICIPANT_TEAM_NAME);
-      participantTeam.prefix(PARTICIPANT_TEAM_PREFIX);
+      participantTeam.prefix(getParticipantPrefix());
     }
 
     return participantTeam;
+  }
+
+  private Component getParticipantPrefix() {
+    String prefix = plugin.getConfig().getString("participant_prefix", "<gold>[Egg]</gold> ");
+    return MiniMessage.miniMessage().deserialize(prefix);
+  }
+
+  private Component getObjectiveTitle() {
+    String title =
+        plugin.getConfig().getString("objective_title", "<yellow>Egg</yellow> <aqua>Battle</aqua>");
+    return MiniMessage.miniMessage().deserialize(title);
   }
 
   public void loadScoresIntoScoreboard() {

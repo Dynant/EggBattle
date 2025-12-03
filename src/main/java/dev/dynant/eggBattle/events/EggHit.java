@@ -2,52 +2,46 @@
 package dev.dynant.eggBattle.events;
 
 import dev.dynant.eggBattle.EggBattle;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.sound.Sound.Source;
 import org.bukkit.Particle;
-import org.bukkit.Sound;
-import org.bukkit.entity.Egg;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
-import org.bukkit.projectiles.ProjectileSource;
 
 public class EggHit implements Listener {
   @EventHandler
   public void onEggHit(ProjectileHitEvent event) {
     if (!EggBattle.gameManager.gameIsActive()) return;
+    if (!(event.getEntity() instanceof Projectile projectile)) return;
+    if (!(event.getHitEntity() instanceof Player target)) return;
+    if (!(projectile.getShooter() instanceof Player thrower)) return;
 
-    Entity entity = event.getEntity();
-    Entity hitEntity = event.getHitEntity();
+    // Validate projectile type matches config, default is EGG
+    String configType =
+        EggBattle.plugin.getConfig().getString("projectile_type", "EGG").toUpperCase();
+    if (!event.getEntity().getType().name().equals(configType)) return;
 
-    if (!(entity instanceof Egg egg)) return;
-    if (!(hitEntity instanceof Player target)) return;
-
-    ProjectileSource shooter = egg.getShooter();
-    if (!(shooter instanceof Player thrower)) return;
-
-    // Make sure the thrower and target are not the same player
+    // Check if the thrower and target are the same player
     if (thrower.equals(target)) return;
 
     // Check if the thrower and target are in the game
     if (!EggBattle.gameManager.isPlayerInGame(thrower.getUniqueId())) return;
     if (!EggBattle.gameManager.isPlayerInGame(target.getUniqueId())) return;
 
-    // Update scores for thrower and target
+    // Update scores
     EggBattle.gameManager.addScore(thrower, 1);
     EggBattle.gameManager.addScore(target, -1);
 
-    // Spawn particles near target on hit
-    target
-        .getWorld()
-        .spawnParticle(Particle.CRIT, target.getLocation().add(0, 1, 0), 10, 0.5, 0.5, 0.5, 0.1);
+    // Apply effects
+    spawnParticle(target);
+    playSound(thrower, "effects.thrower_sound", "entity.chicken.egg", 0.7f, 1.5f);
+    playSound(target, "effects.target_sound", "entity.turtle.egg_crack", 0.4f, 1.5f);
 
-    // Player sound for the thrower when hitting
-    thrower.playSound(thrower.getLocation(), Sound.ENTITY_CHICKEN_EGG, 0.7f, 1.5f);
-    // Play sound for the target player when hit
-    target.playSound(target.getLocation(), Sound.ENTITY_TURTLE_EGG_CRACK, 0.4f, 1.5f);
-
-    // Apply knock back to the target player
+    // Apply knockback
     double knockBackStrength = 0.25;
     target.setVelocity(
         target
@@ -56,5 +50,33 @@ public class EggHit implements Listener {
             .toVector()
             .normalize()
             .multiply(knockBackStrength));
+  }
+
+  private void spawnParticle(Player target) {
+    String particleName = EggBattle.plugin.getConfig().getString("effects.particle", "CRIT");
+    try {
+      Particle particle = Particle.valueOf(particleName);
+      target
+          .getWorld()
+          .spawnParticle(particle, target.getLocation().add(0, 1, 0), 10, 0.5, 0.5, 0.5, 0.1);
+    } catch (IllegalArgumentException e) {
+      target
+          .getWorld()
+          .spawnParticle(Particle.CRIT, target.getLocation().add(0, 1, 0), 10, 0.5, 0.5, 0.5, 0.1);
+    }
+  }
+
+  private void playSound(
+      Player player, String configPath, String defaultSound, float volume, float pitch) {
+    String soundName = EggBattle.plugin.getConfig().getString(configPath, defaultSound);
+    try {
+      Key key = Key.key("minecraft:" + soundName);
+      Sound sound = Sound.sound(key, Source.PLAYER, volume, pitch);
+      var loc = player.getLocation();
+      player.playSound(sound, loc.x(), loc.y(), loc.z());
+    } catch (Exception ignored) {
+      EggBattle.plugin.getLogger().warning("Invalid sound: " + soundName);
+      // Silently fail for invalid sounds
+    }
   }
 }
